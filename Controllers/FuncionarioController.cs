@@ -1,98 +1,102 @@
-using Azure.Data.Tables;
 using Microsoft.AspNetCore.Mvc;
+using System;
 using TrilhaNetAzureDesafio.Context;
 using TrilhaNetAzureDesafio.Models;
 
-namespace TrilhaNetAzureDesafio.Controllers;
-
-[ApiController]
-[Route("[controller]")]
-public class FuncionarioController : ControllerBase
+namespace TrilhaNetAzureDesafio.Controllers
 {
-    private readonly RHContext _context;
-    private readonly string _connectionString;
-    private readonly string _tableName;
-
-    public FuncionarioController(RHContext context, IConfiguration configuration)
+    [ApiController]
+    [Route("[controller]")]
+    public class FuncionarioController : ControllerBase
     {
-        _context = context;
-        _connectionString = configuration.GetValue<string>("ConnectionStrings:SAConnectionString");
-        _tableName = configuration.GetValue<string>("ConnectionStrings:AzureTableName");
-    }
+        private readonly RHContext _context;
 
-    private TableClient GetTableClient()
-    {
-        var serviceClient = new TableServiceClient(_connectionString);
-        var tableClient = serviceClient.GetTableClient(_tableName);
+        public FuncionarioController(RHContext context)
+        {
+            _context = context;
+        }
 
-        tableClient.CreateIfNotExists();
-        return tableClient;
-    }
+        [HttpGet("{id}")]
+        public IActionResult ObterPorId(int id)
+        {
+            var funcionario = _context.Funcionarios.Find(id);
+            if (funcionario == null) return NotFound();
+            return Ok(funcionario);
+        }
 
-    [HttpGet("{id}")]
-    public IActionResult ObterPorId(int id)
-    {
-        var funcionario = _context.Funcionarios.Find(id);
+        [HttpPost]
+        public IActionResult Criar(Funcionario funcionario)
+        {
+            _context.Funcionarios.Add(funcionario);
+            _context.SaveChanges();
 
-        if (funcionario == null)
-            return NotFound();
+            var log = new FuncionarioLog
+            {
+                Id = funcionario.Id,
+                Nome = funcionario.Nome,
+                TipoAcao = "Inclusao",
+                PartitionKey = funcionario.Departamento,
+                RowKey = funcionario.Id.ToString(),
+                Timestamp = DateTimeOffset.UtcNow
+            };
+            _context.FuncionariosLog.Add(log);
+            _context.SaveChanges();
 
-        return Ok(funcionario);
-    }
+            return CreatedAtAction(nameof(ObterPorId), new { id = funcionario.Id }, funcionario);
+        }
 
-    [HttpPost]
-    public IActionResult Criar(Funcionario funcionario)
-    {
-        _context.Funcionarios.Add(funcionario);
-        // TODO: Chamar o método SaveChanges do _context para salvar no Banco SQL
+        [HttpPut("{id}")]
+        public IActionResult Atualizar(int id, Funcionario funcionario)
+        {
+            var funcionarioBanco = _context.Funcionarios.Find(id);
+            if (funcionarioBanco == null) return NotFound();
 
-        var tableClient = GetTableClient();
-        var funcionarioLog = new FuncionarioLog(funcionario, TipoAcao.Inclusao, funcionario.Departamento, Guid.NewGuid().ToString());
+            funcionarioBanco.Nome = funcionario.Nome;
+            funcionarioBanco.Endereco = funcionario.Endereco;
+            funcionarioBanco.Ramal = funcionario.Ramal;
+            funcionarioBanco.EmailProfissional = funcionario.EmailProfissional;
+            funcionarioBanco.Departamento = funcionario.Departamento;
+            funcionarioBanco.Salario = funcionario.Salario;
+            funcionarioBanco.DataAdmissao = funcionario.DataAdmissao;
 
-        // TODO: Chamar o método UpsertEntity para salvar no Azure Table
+            _context.SaveChanges();
 
-        return CreatedAtAction(nameof(ObterPorId), new { id = funcionario.Id }, funcionario);
-    }
+            var log = new FuncionarioLog
+            {
+                Id = id,
+                Nome = funcionario.Nome,
+                TipoAcao = "Atualizacao",
+                PartitionKey = funcionario.Departamento,
+                RowKey = id.ToString(),
+                Timestamp = DateTimeOffset.UtcNow
+            };
+            _context.FuncionariosLog.Add(log);
+            _context.SaveChanges();
 
-    [HttpPut("{id}")]
-    public IActionResult Atualizar(int id, Funcionario funcionario)
-    {
-        var funcionarioBanco = _context.Funcionarios.Find(id);
+            return Ok(funcionarioBanco);
+        }
 
-        if (funcionarioBanco == null)
-            return NotFound();
+        [HttpDelete("{id}")]
+        public IActionResult Deletar(int id)
+        {
+            var funcionarioBanco = _context.Funcionarios.Find(id);
+            if (funcionarioBanco == null) return NotFound();
 
-        funcionarioBanco.Nome = funcionario.Nome;
-        funcionarioBanco.Endereco = funcionario.Endereco;
-        // TODO: As propriedades estão incompletas
+            _context.Funcionarios.Remove(funcionarioBanco);
 
-        // TODO: Chamar o método de Update do _context.Funcionarios para salvar no Banco SQL
-        _context.SaveChanges();
+            var log = new FuncionarioLog
+            {
+                Id = id,
+                Nome = funcionarioBanco.Nome,
+                TipoAcao = "Remocao",
+                PartitionKey = funcionarioBanco.Departamento,
+                RowKey = id.ToString(),
+                Timestamp = DateTimeOffset.UtcNow
+            };
+            _context.FuncionariosLog.Add(log);
+            _context.SaveChanges();
 
-        var tableClient = GetTableClient();
-        var funcionarioLog = new FuncionarioLog(funcionarioBanco, TipoAcao.Atualizacao, funcionarioBanco.Departamento, Guid.NewGuid().ToString());
-
-        // TODO: Chamar o método UpsertEntity para salvar no Azure Table
-
-        return Ok();
-    }
-
-    [HttpDelete("{id}")]
-    public IActionResult Deletar(int id)
-    {
-        var funcionarioBanco = _context.Funcionarios.Find(id);
-
-        if (funcionarioBanco == null)
-            return NotFound();
-
-        // TODO: Chamar o método de Remove do _context.Funcionarios para salvar no Banco SQL
-        _context.SaveChanges();
-
-        var tableClient = GetTableClient();
-        var funcionarioLog = new FuncionarioLog(funcionarioBanco, TipoAcao.Remocao, funcionarioBanco.Departamento, Guid.NewGuid().ToString());
-
-        // TODO: Chamar o método UpsertEntity para salvar no Azure Table
-
-        return NoContent();
+            return NoContent();
+        }
     }
 }
