@@ -58,4 +58,4 @@ Este é o diagrama do ambiente que deverá ser montado no Microsoft Azure, utili
 ![Diagrama da classe Funcionario](Imagens/diagrama_api.png)
 
 ---
-*Código base disponibilizado pela [DIO](https://dio.me). Implementação final, correções e melhorias desenvolvidas por Carol Angel.*
+*Código base disponibilizado pela [DIO](https://dio.me). Implementação final, correções e melhorias desenvolvidas por Carol Anjos.*
